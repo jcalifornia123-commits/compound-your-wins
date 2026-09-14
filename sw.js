@@ -1,4 +1,4 @@
-const CACHE='compound-wins-v1';
+const CACHE='compound-wins-v2';
 const ASSETS=[
   './',
   'index.html',

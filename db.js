@@ -9,6 +9,7 @@ const DB_NAME='compound-wins-db';
 const DB_VERSION=1;
 const CURRENCIES=['USD','EUR','GBP','CAD'];
 const BUSINESS_KINDS=['company','income','sales','investment','reinvestment'];
+const GROWTH_KINDS=['practice','shift'];
 
 function todayISO(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 function isValidISODate(s){
@@ -50,27 +51,47 @@ function validateMemory(raw){
     b.amountCents=amount;
     out.business=b;
   }
+  const growth=raw.growth;
+  if(growth!==undefined&&growth!==null){
+    if(typeof growth!=='object'||Array.isArray(growth))throw new Error('Invalid growth event');
+    const kind=growth.kind;
+    if(!GROWTH_KINDS.includes(kind))throw new Error('Choose a growth event type');
+    const g={kind};
+    const practice=growth.practice===undefined||growth.practice===null?'':growth.practice;
+    if(typeof practice!=='string'||practice.length>100)throw new Error('Invalid practice');
+    g.practice=practice.trim();
+    if(!g.practice)throw new Error('Name the practice or habit');
+    const source=growth.sourceId===undefined||growth.sourceId===null?'':growth.sourceId;
+    if(typeof source!=='string'||source.length>100)throw new Error('Invalid sourceId');
+    g.sourceId=source.trim();
+    out.growth=g;
+  }
   return out;
 }
 
-function validateLinks(entriesById){
+function validateLinkChain(entriesById,field){
   for(const e of Object.values(entriesById)){
-    const b=e.business||{};
-    const source=b.sourceId;
+    const link=e[field]||{};
+    const source=link.sourceId;
     if(!source)continue;
     if(!(source in entriesById))throw new Error('The linked source is missing; import its memory too');
     const parent=entriesById[source];
     if(parent.date>e.date)throw new Error('A linked source must happen on or before this event');
     const seen=new Set([e.id]);
     let current=e;
-    while(current.business&&current.business.sourceId){
-      const key=current.business.sourceId;
+    while(current[field]&&current[field].sourceId){
+      const key=current[field].sourceId;
       if(seen.has(key))throw new Error('These links form a loop. Choose an earlier source');
       seen.add(key);
       if(!(key in entriesById))throw new Error('A linked source is missing');
       current=entriesById[key];
     }
   }
+}
+
+function validateLinks(entriesById){
+  validateLinkChain(entriesById,'business');
+  validateLinkChain(entriesById,'growth');
 }
 
 function reqp(req){return new Promise((resolve,reject)=>{req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
